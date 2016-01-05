@@ -1,0 +1,18 @@
+---
+- hosts: shared
+  tasks:
+
+  - name: Import elasticsearch repo
+    shell: rpm --import http://packages.elastic.co/GPG-KEY-elasticsearch
+    
+  - name: Copy elastic-beats repo
+    copy: src=files/elastic-beats.repo dest=/etc/yum.repos.d/elastic-beats.repo
+
+  - name: Install filebeat
+    yum: name=filebeat
+
+  - name: Configure filebeat
+    copy: src=files/filebeat.yml dest=/etc/filebeat/filebeat.yml
+  
+  - name: Start and Enable Filebeat
+    service: name=filebeat state=restarted enabled=yes 

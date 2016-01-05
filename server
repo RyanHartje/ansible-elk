@@ -1,0 +1,84 @@
+- hosts: shared
+  tasks:
+
+  - name: install java8
+    yum: name=java-1.8.0-openjdk
+
+  - name: import rpm
+    command: rpm --import http://packages.elastic.co/GPG-KEY-elasticsearch
+
+  - name: import repo
+    copy: src=files/elasticsearch.repo dest=/etc/yum.repos.d/elasticsearch.repo
+
+  - name: install elasticsearch
+    yum: name=elasticsearch
+
+  - name: copy elasticsearch config
+    copy: src=files/elasticsearch.yml dest=/etc/elasticsearch/elasticsearch.yml
+
+  - name: restart elasticsearch
+    service: name=elasticsearch state=restarted enabled=yes
+
+  # Kibana Time
+  - name: create Kibana group
+    shell: 'if [ $(groups kibana) == "groups: kibana: no such user" ]; then groupadd kibana; fi'
+ 
+  - name: create Kibana user
+    user: name=kibana groups=kibana 
+
+  - stat: path=/opt/kibana
+    register: kibana_folder
+
+  - name: unarchive kibana
+    unarchive: src=files/kibana-4.3.0-linux-x64.tar.gz dest=/home/kibana
+    when: kibana_folder.stat.exists == False
+
+  - name: configure kibana
+    lineinfile: 'backup=yes state=present dest=/home/kibana/kibana-4.3.0-linux-x64/config/kibana.yml regexp="^# server.host: \"0.0.0.0\"" line="server.host: localhost"'
+
+  - name: create opt folder
+    file: name=/opt/kibana state=directory
+    when: kibana_folder.stat.exists == False
+
+  - name: move kibana files to opt
+    shell: cp -R /home/kibana/kibana-4*/* /opt/kibana
+    #copy: src=/home/kibana/kibana-4*/* /opt/kibana
+    when: kibana_folder.stat.exists == False
+
+  - name: setup init scripts
+    copy: src=files/kibana-4.x-init dest=/etc/init.d/kibana mode=700
+
+  - name: setup default script
+    copy: src=files/kibana-4.x-default dest=/etc/default/kibana mode=700
+  
+  - name: chown opt kibana folder
+    shell: chown -R kibana. /opt/kibana
+
+  - name: enable and start kibana
+    service: name=kibana state=restarted enabled=yes 
+
+  #Logstash Time
+  - name: copy logstash repo
+    copy: src=files/logstash.repo dest=/etc/yum.repos.d/
+
+  - name: install logstash
+    yum: name=logstash
+ 
+  - name: copy filebeat input config file
+    copy: src=files/02-filebeat-input.conf dest=/etc/logstash/conf.d/
+
+  - name: copy config files
+    copy: src=files/10-syslog.conf dest=/etc/logstash/conf.d/
+
+  - copy: src=files/30-elasticsearch-output.conf dest=/etc/logstash/conf.d/
+ 
+  #- name: config test
+  #  command: service logstash configtest
+  #  register: logstash_pass
+  #  failed_when: 
+ 
+  - name: enable and start logstash
+    service: name=logstash state=restarted enabled=yes
+
+  
+    
